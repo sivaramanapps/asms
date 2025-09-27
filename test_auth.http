@@ -1,0 +1,24 @@
+### Test Health Check
+GET http://localhost:3001/health
+
+### Test Login - Client A Admin
+POST http://localhost:3001/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@clienta.com",
+  "password": "password123"
+}
+
+### Test Login - Client B Admin  
+POST http://localhost:3001/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@clientb.com",
+  "password": "password123"
+}
+
+### Test User Profile (replace TOKEN with actual token from login response)
+GET http://localhost:3001/api/auth/me
+Authorization: Bearer YOUR_TOKEN_HERE
