@@ -28,6 +28,8 @@ app.use(limiter);
 // Import routes
 const authRoutes = require('./routes/auth');
 const workerRoutes = require('./routes/workers');
+const attendanceRoutes = require('./routes/attendance');
+const workLogRoutes = require('./routes/work-logs');
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -42,6 +44,8 @@ app.get('/health', (req, res) => {
 // API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/workers', workerRoutes);
+app.use('/api/attendance', attendanceRoutes);
+app.use('/api/work-logs', workLogRoutes);
 
 // Basic API test endpoint
 app.get('/api/test', (req, res) => {
@@ -85,6 +89,8 @@ const startServer = async () => {
     console.log(`🔗 Health check: http://localhost:${PORT}/health`);
     console.log(`🔐 Auth endpoints: http://localhost:${PORT}/api/auth/*`);
     console.log(`👥 Worker endpoints: http://localhost:${PORT}/api/workers/*`);
+    console.log(`📋 Attendance endpoints: http://localhost:${PORT}/api/attendance/*`);
+    console.log(`📝 Work logs endpoints: http://localhost:${PORT}/api/work-logs/*`);
     console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
   });
 };
