@@ -45,7 +45,7 @@ router.post('/clock-in/:workerId',
       'hourly',
       new Date(),
       worker.base_hourly_rate,
-      'clock',
+      'manual',
       req.user.id,
       notes || null
     ];

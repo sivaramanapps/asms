@@ -49,7 +49,7 @@ class ApiService {
     this.clearToken();
   }
 
-  // ... rest of the methods stay the same
+    // ... rest of the methods stay the same
   async getWorkers(companyId) {
     return this.request(`/api/workers/company/${companyId}`);
   }
@@ -61,8 +61,8 @@ class ApiService {
     });
   }
 
-  async clockOut(workerId, companyId, notes = '') {
-    return this.request(`/api/attendance/clock-out/${workerId}`, {
+  async clockOut(logId, companyId, notes = '') {
+    return this.request(`/api/attendance/clock-out/${logId}`, {
       method: 'POST',
       body: JSON.stringify({ companyId, notes }),
     });

@@ -62,7 +62,22 @@ function ClockInOut({ workers, companyId, onUpdate }) {
     setMessage({ type: '', text: '' });
 
     try {
-      const result = await api.clockOut(selectedWorker, companyId, notes);
+      // First, get today's open work logs for this worker
+      const today = new Date().toISOString().split('T')[0];
+      const logsResponse = await api.getWorkLogsByDate(companyId, today);
+      
+      // Find the open log (no clock_out) for this worker
+      const openLog = logsResponse.data.work_logs.find(
+        log => log.worker_id === selectedWorker && !log.clock_out
+      );
+
+      if (!openLog) {
+        setMessage({ type: 'error', text: 'No open clock-in found for this worker today' });
+        return;
+      }
+
+      // Clock out using the log ID
+      const result = await api.clockOut(openLog.id, companyId, notes);
       setMessage({ 
         type: 'success', 
         text: `Clocked out! Hours: ${result.data.work_log.hours_worked}, Earnings: ₹${result.data.work_log.total_earnings}` 
