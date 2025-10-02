@@ -3,7 +3,7 @@ const { pool } = require('../database');
 const { authenticateToken, requireCompanyAccess, auditLog } = require('../middleware/auth');
 const router = express.Router();
 
-// Clock in endpoint
+// Clock in endpoint (allows multiple clock-ins per day)
 router.post('/clock-in/:workerId',
   authenticateToken,
   requireCompanyAccess('manager'),
@@ -27,20 +27,9 @@ router.post('/clock-in/:workerId',
       });
     }
 
-    // Check if already clocked in today
-    const existingQuery = 'SELECT id FROM work_logs WHERE worker_id = $1 AND work_date = $2';
-    const existingResult = await pool.query(existingQuery, [workerId, today]);
-
-    if (existingResult.rows.length > 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Worker already clocked in today'
-      });
-    }
-
     const worker = workerResult.rows[0];
 
-    // Create work log entry
+    // Create work log entry (allow multiple entries)
     const insertQuery = `
       INSERT INTO work_logs (
         company_id, worker_id, work_date, work_type, 
@@ -56,7 +45,7 @@ router.post('/clock-in/:workerId',
       'hourly',
       new Date(),
       worker.base_hourly_rate,
-      'manual',
+      'clock',
       req.user.id,
       notes || null
     ];
@@ -79,31 +68,29 @@ router.post('/clock-in/:workerId',
 });
 
 // Clock out endpoint
-router.post('/clock-out/:workerId',
+router.post('/clock-out/:logId',
   authenticateToken,
   requireCompanyAccess('manager'),
   auditLog('CLOCK_OUT', 'work_log'),
   async (req, res) => {
   try {
-    const { workerId } = req.params;
+    const { logId } = req.params;
     const { companyId } = req;
     const { notes } = req.body;
-    
-    const today = new Date().toISOString().split('T')[0];
 
-    // Find today's work log
+    // Find the work log
     const workLogQuery = `
       SELECT wl.*, w.base_hourly_rate, w.overtime_multiplier 
       FROM work_logs wl
       JOIN workers w ON wl.worker_id = w.id
-      WHERE wl.worker_id = $1 AND wl.work_date = $2 AND wl.company_id = $3
+      WHERE wl.id = $1 AND wl.company_id = $2
     `;
-    const workLogResult = await pool.query(workLogQuery, [workerId, today, companyId]);
+    const workLogResult = await pool.query(workLogQuery, [logId, companyId]);
 
     if (workLogResult.rows.length === 0) {
       return res.status(404).json({
         success: false,
-        message: 'No clock-in record found for today'
+        message: 'Work log not found'
       });
     }
 
@@ -118,7 +105,7 @@ router.post('/clock-out/:workerId',
 
     const clockOut = new Date();
     const clockIn = new Date(workLog.clock_in);
-    const hoursWorked = (clockOut - clockIn) / (1000 * 60 * 60); // Convert to hours
+    const hoursWorked = (clockOut - clockIn) / (1000 * 60 * 60);
     
     let overtimeHours = 0;
     let totalEarnings = 0;
@@ -180,7 +167,7 @@ router.get('/today/:companyId',
       FROM work_logs wl
       JOIN workers w ON wl.worker_id = w.id
       WHERE wl.company_id = $1 AND wl.work_date = $2
-      ORDER BY w.worker_code
+      ORDER BY w.worker_code, wl.created_at
     `;
 
     const result = await pool.query(query, [companyId, today]);
