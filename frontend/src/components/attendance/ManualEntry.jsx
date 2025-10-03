@@ -123,7 +123,11 @@ function ManualEntry({ workers, companyId, onUpdate }) {
                   setShowDropdown(true);
                   setFormData({ ...formData, workerId: '' });
                 }}
+                onClick={() => setShowDropdown(true)}
                 onFocus={() => setShowDropdown(true)}
+                onBlur={() => {
+                  setTimeout(() => setShowDropdown(false), 200);
+                }}
                 placeholder="Search worker..."
                 required={!formData.workerId}
                 className="input"
@@ -152,7 +156,7 @@ function ManualEntry({ workers, companyId, onUpdate }) {
                   </svg>
                 </button>
               )}
-              {showDropdown && filteredWorkers.length > 0 && searchTerm && (
+              {showDropdown && filteredWorkers.length > 0 && (
                 <div style={{
                   position: 'absolute',
                   top: '100%',
@@ -171,7 +175,10 @@ function ManualEntry({ workers, companyId, onUpdate }) {
                   {filteredWorkers.map(worker => (
                     <div
                       key={worker.id}
-                      onClick={() => handleWorkerSelect(worker)}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        handleWorkerSelect(worker);
+                      }}
                       style={{
                         padding: 'var(--space-md)',
                         cursor: 'pointer',

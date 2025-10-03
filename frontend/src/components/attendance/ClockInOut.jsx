@@ -138,13 +138,19 @@ function ClockInOut({ workers, companyId, onUpdate }) {
                 setShowDropdown(true);
                 setSelectedWorker('');
               }}
+              onClick={() => setShowDropdown(true)}
               onFocus={() => setShowDropdown(true)}
+              onBlur={() => {
+                // Delay to allow click on dropdown item
+                setTimeout(() => setShowDropdown(false), 200);
+              }}
               placeholder="Type worker code or name..."
               className="input"
               style={{ paddingRight: searchTerm ? '3rem' : '1rem' }}
             />
             {searchTerm && (
               <button
+                type="button"
                 onClick={clearSelection}
                 style={{
                   position: 'absolute',
@@ -165,7 +171,7 @@ function ClockInOut({ workers, companyId, onUpdate }) {
                 </svg>
               </button>
             )}
-            {showDropdown && filteredWorkers.length > 0 && searchTerm && (
+            {showDropdown && filteredWorkers.length > 0 && (
               <div style={{
                 position: 'absolute',
                 top: '100%',
@@ -184,7 +190,10 @@ function ClockInOut({ workers, companyId, onUpdate }) {
                 {filteredWorkers.map(worker => (
                   <div
                     key={worker.id}
-                    onClick={() => handleWorkerSelect(worker)}
+                    onMouseDown={(e) => {
+                      e.preventDefault(); // Prevent blur
+                      handleWorkerSelect(worker);
+                    }}
                     style={{
                       padding: 'var(--space-md)',
                       cursor: 'pointer',
