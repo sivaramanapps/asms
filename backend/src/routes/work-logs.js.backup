@@ -193,6 +193,7 @@ router.post('/entry',
 // Update work log
 router.put('/:logId',
   authenticateToken,
+  requireCompanyAccess('manager'),
   auditLog('UPDATE_WORK_LOG', 'work_log'),
   async (req, res) => {
   try {
@@ -205,18 +206,17 @@ router.put('/:logId',
       piecesCompleted,
       pieceRate,
       hourlyRate,
-      notes,
-      workTypeId
+      notes
     } = req.body;
 
-    // Get existing work log with company_id
+    // Get existing work log
     const existingQuery = `
-      SELECT wl.*, w.overtime_multiplier, wl.company_id, wl.worker_id
+      SELECT wl.*, w.overtime_multiplier 
       FROM work_logs wl
       JOIN workers w ON wl.worker_id = w.id
-      WHERE wl.id = $1
+      WHERE wl.id = $1 AND wl.company_id = $2
     `;
-    const existingResult = await pool.query(existingQuery, [logId]);
+    const existingResult = await pool.query(existingQuery, [logId, req.companyId]);
 
     if (existingResult.rows.length === 0) {
       return res.status(404).json({
@@ -226,18 +226,6 @@ router.put('/:logId',
     }
 
     const workLog = existingResult.rows[0];
-    
-    // Verify user has access to this company
-    const hasAccess = req.user.companies.some(c => 
-      c.companyId === workLog.company_id && c.isActive
-    );
-
-    if (!hasAccess) {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied to this work log'
-      });
-    }
 
     // Recalculate earnings
     let calculatedHours = parseFloat(hoursWorked) || 0;
@@ -258,27 +246,45 @@ router.put('/:logId',
     }
 
     if (workType === 'piece' || workType === 'mixed') {
-      // Check for work type rate if workTypeId provided
-      if (workTypeId) {
+      calculatedPieces = parseInt(piecesCompleted) || 0;
+      
+      // Priority: 1. Worker-specific rate, 2. Work type rate, 3. Manual rate, 4. Worker default
+      if (req.body.workTypeId) {
+        console.log('Looking for custom rate for worker:', workerId, 'workType:', req.body.workTypeId);
+        
+        // Check for worker-specific rate override
         const workerRateQuery = `
-          SELECT custom_rate FROM worker_work_type_rates 
+          SELECT custom_rate 
+          FROM worker_work_type_rates 
           WHERE worker_id = $1 AND work_type_id = $2
         `;
-        const workerRateResult = await pool.query(workerRateQuery, [workLog.worker_id, workTypeId]);
+        const workerRateResult = await pool.query(workerRateQuery, [workerId, req.body.workTypeId]);
         
         if (workerRateResult.rows.length > 0) {
+          // Use worker-specific rate
           calculatedPieceRate = parseFloat(workerRateResult.rows[0].custom_rate);
+          console.log('Using worker-specific rate:', calculatedPieceRate);
         } else {
-          const workTypeQuery = 'SELECT piece_rate FROM work_types WHERE id = $1';
-          const workTypeResult = await pool.query(workTypeQuery, [workTypeId]);
+          console.log('No worker-specific rate, checking work type rate');
+          // Use work type default rate
+          const workTypeQuery = 'SELECT piece_rate FROM work_types WHERE id = $1 AND company_id = $2';
+          const workTypeResult = await pool.query(workTypeQuery, [req.body.workTypeId, companyId]);
+          
           if (workTypeResult.rows.length > 0) {
             calculatedPieceRate = parseFloat(workTypeResult.rows[0].piece_rate);
+            console.log('Using work type rate:', calculatedPieceRate);
+          } else {
+            calculatedPieceRate = parseFloat(pieceRate) || parseFloat(worker.base_piece_rate) || 0;
+            console.log('Using worker default rate:', calculatedPieceRate);
           }
         }
+      } else {
+        calculatedPieceRate = parseFloat(pieceRate) || parseFloat(worker.base_piece_rate) || 0;
+        console.log('No workTypeId, using default:', calculatedPieceRate);
       }
       
       totalEarnings += calculatedPieces * calculatedPieceRate;
-    }
+    }    
 
     // Update work log
     const updateQuery = `
@@ -286,8 +292,8 @@ router.put('/:logId',
       SET work_type = $1, clock_in = $2, clock_out = $3,
           hours_worked = $4, pieces_completed = $5, piece_rate = $6, 
           hourly_rate = $7, overtime_hours = $8, total_earnings = $9,
-          notes = $10, work_type_id = $11, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $12
+          notes = $10, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $11
       RETURNING *
     `;
 
@@ -295,7 +301,7 @@ router.put('/:logId',
       workType, clockIn, clockOut,
       calculatedHours, calculatedPieces, calculatedPieceRate,
       calculatedHourlyRate, overtimeHours, totalEarnings,
-      notes, workTypeId || null, logId
+      notes, logId
     ]);
 
     res.json({
@@ -316,40 +322,21 @@ router.put('/:logId',
 // Delete work log
 router.delete('/:logId',
   authenticateToken,
+  requireCompanyAccess('admin'),
   auditLog('DELETE_WORK_LOG', 'work_log'),
   async (req, res) => {
   try {
     const { logId } = req.params;
 
-    // Get work log to verify ownership
-    const checkQuery = 'SELECT company_id FROM work_logs WHERE id = $1';
-    const checkResult = await pool.query(checkQuery, [logId]);
+    const deleteQuery = 'DELETE FROM work_logs WHERE id = $1 AND company_id = $2 RETURNING *';
+    const result = await pool.query(deleteQuery, [logId, req.companyId]);
 
-    if (checkResult.rows.length === 0) {
+    if (result.rows.length === 0) {
       return res.status(404).json({
         success: false,
         message: 'Work log not found'
       });
     }
-
-    const companyId = checkResult.rows[0].company_id;
-
-    // Verify user has admin access to this company
-    const hasAccess = req.user.companies.some(c => 
-      c.companyId === companyId && c.isActive && 
-      (c.role === 'admin' || c.role === 'vendor_admin')
-    );
-
-    if (!hasAccess) {
-      return res.status(403).json({
-        success: false,
-        message: 'Admin access required to delete work logs'
-      });
-    }
-
-    // Delete the work log
-    const deleteQuery = 'DELETE FROM work_logs WHERE id = $1 RETURNING *';
-    const result = await pool.query(deleteQuery, [logId]);
 
     res.json({
       success: true,

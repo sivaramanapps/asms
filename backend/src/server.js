@@ -5,6 +5,7 @@ const rateLimit = require('express-rate-limit');
 const { testConnection } = require('./database');
 require('dotenv').config();
 
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -30,6 +31,8 @@ const authRoutes = require('./routes/auth');
 const workerRoutes = require('./routes/workers');
 const attendanceRoutes = require('./routes/attendance');
 const workLogRoutes = require('./routes/work-logs');
+const workTypeRoutes = require('./routes/work-types');
+const workerRateRoutes = require('./routes/worker-rates');
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -46,6 +49,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/workers', workerRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/work-logs', workLogRoutes);
+app.use('/api/work-types', workTypeRoutes);
+app.use('/api/worker-rates', workerRateRoutes);
 
 // Basic API test endpoint
 app.get('/api/test', (req, res) => {
@@ -91,6 +96,8 @@ const startServer = async () => {
     console.log(`👥 Worker endpoints: http://localhost:${PORT}/api/workers/*`);
     console.log(`📋 Attendance endpoints: http://localhost:${PORT}/api/attendance/*`);
     console.log(`📝 Work logs endpoints: http://localhost:${PORT}/api/work-logs/*`);
+    console.log(`🏭 Work types endpoints: http://localhost:${PORT}/api/work-types/*`);
+    console.log(`🏭 Worker rates endpoints: http://localhost:${PORT}/api/worker-rates/*`);
     console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
   });
 };

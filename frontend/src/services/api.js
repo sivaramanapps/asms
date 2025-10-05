@@ -82,6 +82,10 @@ class ApiService {
   async getWorkLogsByDate(companyId, date) {
     return this.request(`/api/work-logs/company/${companyId}/date/${date}`);
   }
+
+    async getWorkTypes(companyId) {
+    return this.request(`/api/work-types/company/${companyId}?active=true`);
+  }
 }
 
 export default new ApiService();
